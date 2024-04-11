@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+import subprocess
+import argparse
+import re
+import time
+from colorama import Fore, Style
+
+def flip_animation(prefix, new_line=True):
+    chars = "[/|-\\]"
+    orange = Fore.YELLOW
+    green = Fore.GREEN
+
+    while True:
+        for char in chars:
+            print(f"\r{Style.BRIGHT}{prefix} {orange}[{char}]{Style.RESET_ALL} ", end='', flush=True)
+            time.sleep(0.1)
+        print(f"\r{Style.BRIGHT}{prefix} {green}[+]{Style.RESET_ALL} ", end='', flush=True)
+        if new_line:
+            print("")  # Move to a new line after completing the animation
+        break
+
+def run_rustscan(target_ip):
+    flip_animation("Extracting ports")  # Display the flipping animation for extracting ports
+
+    # Run rustscan command, redirect stderr to null device
+    rustscan_cmd = f"rustscan --ulimit 5000 -a {target_ip} -- -Pn"
+    result = subprocess.run(rustscan_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+
+    # Extract open ports using a modified regular expression
+    open_ports_match = re.findall(r'Open (\S+:\d+)', result.stdout)
+    open_ports = [match.split(":")[1] for match in open_ports_match]
+
+    return open_ports
+
+def run_nmap(target_ip, open_ports):
+    flip_animation("Running nmap", new_line=False)  # Display the nmap animation without a new line
+
+    # Run nmap command, redirect stdout and stderr to null device
+    nmap_cmd = f"nmap -sC -sV -p {','.join(open_ports)} {target_ip} -oN nmap.txt"
+    subprocess.run(nmap_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("")  # Move to a new line after completing nmap animation
+
+def main():
+    parser = argparse.ArgumentParser(description="Enumerate open ports and run nmap scan.")
+    parser.add_argument("-t", "--target", help="Target IP address", required=True)
+    args = parser.parse_args()
+
+    target_ip = args.target
+
+    # Step 1: Run rustscan
+    open_ports = run_rustscan(target_ip)
+
+    # Step 2: Run nmap with open ports
+    if open_ports:
+        run_nmap(target_ip, open_ports)
+    else:
+        print("No open ports found.")
+
+if __name__ == "__main__":
+    main()
